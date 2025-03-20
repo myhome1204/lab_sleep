@@ -337,7 +337,7 @@ def get_sample_rate_from_wave(input_wav):
 
 def process_large_wav(input_wav, chunk_duration=20):
     global audio_total_time
-    
+    dic_reset()
     # 입력 WAV 파일 읽기
     # sample_rate = get_sample_rate_from_wave(input_wav)
     audio_data, sample_rate = librosa.load(input_wav, sr=None)
