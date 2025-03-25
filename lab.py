@@ -24,7 +24,50 @@ numbering = {
     "코골이" :3
 
 }
-
+#얘네도 파일 바뀔떄마다 초기화해야함
+bruxism_score_dic = {
+    0 : 1.5,
+    1:1.0,
+    2:1.0,
+    3:1.5,
+    4:1.0,
+    5:1.2,
+    6:1.0,
+    7:0.8,
+    8:1.2,
+    9:1.0,
+    10:1.1,
+    11:1.0,
+    12:0.8,
+}
+snoring_score_dic = {
+    0 : 1.5,
+    1:1.0,
+}
+cough_score_dic = {
+    #기침와 이갈이는 그룹조합의 인덱스번호 말고도 조건이 하나 더있기떄문에 특별 점수가 하나더 존재해야한다.(only_cough에대한 score값 저장 )
+    0 : 1.5,
+    1:1.0,
+    2:1.0,
+    3:1.5,
+    4:1.0,
+    5:1.2,
+    6:1.0,
+    7:0.8,
+    8:1.2,
+    9:1.0,
+    10:1.1,
+    "only_cough" : 1.1
+}
+speech_score_dic = {
+    0 : 1.5,
+    1:1.0,
+    2:1.0,
+    3:1.5,
+    4:1.0,
+    5:1.2,
+    6:1.0,
+}
 def ensure_sample_rate(original_sample_rate, waveform,
                        desired_sample_rate=16000):
   """Resample waveform if required."""
@@ -74,7 +117,7 @@ total_group_size_calculate_dic   = {1: 40,
  19: 22}
 
 global_class_combinations_list = [
-
+    
     [
     # 동물 소리 포함 이갈이
     {500 : (0.1,0.8), 41: (0.05, 0.5) }, #41 Snort
@@ -210,9 +253,8 @@ def one_frame_judgment_only_cough(scores, class_combinations_list):
     return False  # 둘 다 아니라면 False
 # 한 프레임에 대한 T/F 계산 함수 , scores는 yamnet의 한 프레임에 대한 확률벡터값(521,1)
 def one_frame_judgment(scores, class_combinations):
-    for combination in class_combinations:
+    for i,combination in enumerate(class_combinations):
         all_match = True  # 현재 combination이 완전히 만족하는지 확인하는 변수
-
         for class_id, score_range in combination.items():
             if len(score_range) >=3:
                 print(score_range)
@@ -223,38 +265,45 @@ def one_frame_judgment(scores, class_combinations):
                 all_match = False
                 break
         if all_match:  # 해당 combination이 완벽하게 만족하면 True 반환
-            return True
-    return False  # 모든 조합이 실패하면 False 반환
+            return True,
+    return False,0  # 모든 조합이 실패하면 False 반환
 
 
 # 오디오 파일에 대한 최종 T/F 판단함수 , audio_path는 오디오 파일, class_combinations 은 조건 , group_size는 내가 묶을 단위의 frame숫자,
 # min_valid_count 는 group에서 몇개이상일지 판단하는 값, required_true_count는 실제 최종판단해서 true 갯수 기준 , scores 는 Yamnet의 scores.numpy
-def final_logic(class_combinations, group_size, min_valid_count, required_true_count,scores,slide_step=0.48,cough=False):
+def final_logic(class_combinations, group_size, min_valid_count, required_true_count,scores,slide_step=0.48,bruxism=False,cough=False,snoring=False,speech=False):
     real_time = group_size_dic[group_size]  # 오디오 파일 20초로 고정
     result_count = 0
     total_window_size = 40 # 판단해야하는 총 frame수 40으로 고정
     # 구간별 T/F 결과를 딕셔너리 형태로 저장할 리스트 (각 구간에 대한 T/F 값)
+    total_group_size  = total_group_size_calculate_dic[group_size] #그룹사이즈 미리 계산.
+    step_size = int(slide_step / 0.48)  
     segment_results = {}
-
+    scores_frame_list = []
     # 예시로 각 구간에 대해 T/F를 임의로 결정하는 로직 (이 부분은 실제 분석 로직에 따라 변경)
     for i in range(total_window_size):
         start_time = i * 0.48  # 구간의 시작 시간 (0.48초씩 밀리기 때문에)
         end_time = start_time + 0.96  # 구간의 끝 시간 (frame_length 만큼 더함)
         # 딕셔너리 형태로 구간 저장 (구간의 시간대: T/F)
         key = f"{start_time:.2f}-{end_time:.2f}"
-
         score = scores[i,:]  # 현재 구간에 대한 score 벡터
-        if cough:
-            is_true=one_frame_judgment_only_cough(score,class_combinations)
+        if bruxism:
+            is_true,score_frame= one_frame_judgment(score,class_combinations)
+        elif cough:
+            is_true,score_frame=one_frame_judgment_only_cough(score,class_combinations)
+        elif snoring:
+            is_true,score_frame = one_frame_judgment(score,class_combinations)
+        elif speech:
+            is_true,score_frame = one_frame_judgment(score,class_combinations)  
         else:
-            is_true = one_frame_judgment(score,class_combinations)
+            is_true,score_frame = one_frame_judgment(score,class_combinations)
         segment_results[key] = is_true
+        scores_frame_list.append(score_frame)
     # 딕셔너리 형태로 저장된 구간 출력
     # for key, value in segment_results.items():
     #     print(f"{key}: {'T' if value else 'F'}")
-    total_group_size  = total_group_size_calculate_dic[group_size] #그룹사이즈 미리 계산.
-    step_size = int(slide_step / 0.48)
-
+    scores_group_list_temp = [sum(scores_frame_list[i:i+group_size]) for i in range(len(scores_frame_list) - group_size + 1)]
+    scores_group_list = []
     # 이제 group_size 만큼 구간을 묶어서 판단하기
     for i in range(0, total_group_size*step_size,step_size):
         group = list(segment_results.items())[i:i+group_size]  # group_size 구간 묶기
@@ -264,16 +313,20 @@ def final_logic(class_combinations, group_size, min_valid_count, required_true_c
         # T의 개수가 min_valid_count 이상이면 해당 구간을 T로 판단
         if true_count >= min_valid_count:
             # print(f"start_time: {start_time} ~  end_time: {end_time}: T")
+            scores_group_list.append(scores_group_list_temp[i])
             result_count+=1
         else:
             continue
             # print(f"start_time: {start_time} ~  end_time: {end_time}: F")
     # print(f"총 {total_group_size}개 중에 True갯수 : {result_count}, False 갯수 :{total_group_size-result_count} 최소갯수 : {required_true_count}")
     # show(global_waveform, scores, global_spectrogram_np, global_scores_np, "asdasd",segment_results)
+    # 여기는 해당 이벤트인지아닌지 최종 T/F를 판단하여 보내는 부분, 즉 이미 특정이벤트라고 판단되었으면
+    # 최소그룹 갯수만큼 sort시키고 더한값을 보내면 그만이다 즉 score를보낸다 ! 
     if (result_count >=required_true_count):
-        return True,result_count
+        sorted_scores = sorted(scores_group_list, reverse=True)
+        return True,result_count,sum(sorted_scores[:required_true_count])
     else:
-        return False,result_count
+        return False,result_count,0
 # global_waveform = ""
 # global_spectrogram_np = ""
 # global_scores_np = ""
@@ -295,25 +348,47 @@ def start(audio_path,scores, class_combinations_list, group_size_list, min_valid
     for i, category in enumerate(result_dict.keys()):
         if i == 4:
           break
-        if category =="기침":
-          judge,result_count= final_logic(class_combinations=class_combinations_list[i],
+        if category =="이갈이":
+            judge,result_count,score= final_logic(class_combinations=class_combinations_list[i],
+                                      group_size=group_size_list[i],
+                                      min_valid_count=min_valid_count_list[i],
+                                      required_true_count=required_true_count_list[i],
+                                      scores=scores,
+                                      bruxism=True)
+        
+        elif category =="기침":
+          judge,result_count,score= final_logic(class_combinations=class_combinations_list[i],
                                       group_size=group_size_list[i],
                                       min_valid_count=min_valid_count_list[i],
                                       required_true_count=required_true_count_list[i],
                                       scores=scores,
                                       cough =True)
           result_scores.append(result_count)
+        elif category =="코골이":
+            judge,result_count,score= final_logic(class_combinations=class_combinations_list[i],
+                                      group_size=group_size_list[i],
+                                      min_valid_count=min_valid_count_list[i],
+                                      required_true_count=required_true_count_list[i],
+                                      scores=scores,
+                                      snroing =True)
+        elif category =="잠꼬대":
+            judge,result_count,score= final_logic(class_combinations=class_combinations_list[i],
+                                      group_size=group_size_list[i],
+                                      min_valid_count=min_valid_count_list[i],
+                                      required_true_count=required_true_count_list[i],
+                                      scores=scores,
+                                      speech =True)
         else:
-          judge,result_count= final_logic(class_combinations=class_combinations_list[i],
+          judge,result_count,score= final_logic(class_combinations=class_combinations_list[i],
                                       group_size=group_size_list[i],
                                       min_valid_count=min_valid_count_list[i],
                                       required_true_count=required_true_count_list[i],
                                       scores=scores)
-          result_scores.append(result_count)
+          result_scores.append(score)
         # 결과를 딕셔너리에 저장
         result_dict[category] = judge
     result_list = [int(result_dict[key]) for key in result_dict]
-
+    
     # 모든 값이 False면 마지막 요소를 1로 설정
     if sum(result_list) == 0:
         result_dict['정상'] = True
