@@ -22,9 +22,9 @@ numbering = {
     "기침" :1,
     "잠꼬대" :2,
     "코골이" :3
-
 }
-#얘네도 파일 바뀔떄마다 초기화해야함
+
+#얘네가 초기화가아니라 마지막에 파일당 점수를 가지고 있는 dic를 초기화해야함함
 bruxism_score_dic = {
     0 : 1.5,
     1:1.0,
@@ -67,6 +67,12 @@ speech_score_dic = {
     4:1.0,
     5:1.2,
     6:1.0,
+}
+score_dic_matching = {
+    "이갈이" :bruxism_score_dic,
+    "기침" :cough_score_dic,
+    "잠꼬대" :speech_score_dic,
+    "코골이" :snoring_score_dic
 }
 def ensure_sample_rate(original_sample_rate, waveform,
                        desired_sample_rate=16000):
@@ -236,7 +242,7 @@ def is_cough_in_top_5(scores):
 
 def one_frame_judgment_only_cough(scores, class_combinations_list):
     """ 기존 조합 기반 판단 + Cough(42) 포함 여부 추가 """
-    temp1 = one_frame_judgment(scores, class_combinations_list)
+    temp1,score_frame = one_frame_judgment(scores, class_combinations_list)
     # top_5_indices = np.argsort(scores)[::-1][:20]  # 확률값 기준 상위 5개 클래스 추출
     # get_class_name(class_id)
     # for i in top_5_indices:
@@ -244,15 +250,15 @@ def one_frame_judgment_only_cough(scores, class_combinations_list):
     # print("\n\n")
     # 기존 조합 검사
     if temp1:
-        return True  # 기존 조합이 충족되면 바로 True
+        return True,score_frame # 기존 조합이 충족되면 바로 True
 
     temp2 = is_cough_in_top_5(scores)  # Cough(42) 상위 5개 내 포함 여부 검사
     if temp2:
-        return True  # 기침이 상위 5개 안에 있으면 True
+        return True,cough_score_dic['only_cough']  # 기침이 상위 5개 안에 있으면 True
 
-    return False  # 둘 다 아니라면 False
+    return False,0  # 둘 다 아니라면 False
 # 한 프레임에 대한 T/F 계산 함수 , scores는 yamnet의 한 프레임에 대한 확률벡터값(521,1)
-def one_frame_judgment(scores, class_combinations):
+def one_frame_judgment(scores, class_combinations,current=None):
     for i,combination in enumerate(class_combinations):
         all_match = True  # 현재 combination이 완전히 만족하는지 확인하는 변수
         for class_id, score_range in combination.items():
@@ -265,7 +271,7 @@ def one_frame_judgment(scores, class_combinations):
                 all_match = False
                 break
         if all_match:  # 해당 combination이 완벽하게 만족하면 True 반환
-            return True,
+            return True,score_dic_matching[current][i]
     return False,0  # 모든 조합이 실패하면 False 반환
 
 
@@ -288,13 +294,13 @@ def final_logic(class_combinations, group_size, min_valid_count, required_true_c
         key = f"{start_time:.2f}-{end_time:.2f}"
         score = scores[i,:]  # 현재 구간에 대한 score 벡터
         if bruxism:
-            is_true,score_frame= one_frame_judgment(score,class_combinations)
+            is_true,score_frame= one_frame_judgment(score,class_combinations,"이갈이")
         elif cough:
-            is_true,score_frame=one_frame_judgment_only_cough(score,class_combinations)
+            is_true,score_frame=one_frame_judgment_only_cough(score,class_combinations,"기침")
         elif snoring:
-            is_true,score_frame = one_frame_judgment(score,class_combinations)
+            is_true,score_frame = one_frame_judgment(score,class_combinations,"코골이")
         elif speech:
-            is_true,score_frame = one_frame_judgment(score,class_combinations)  
+            is_true,score_frame = one_frame_judgment(score,class_combinations,"잠꼬대")  
         else:
             is_true,score_frame = one_frame_judgment(score,class_combinations)
         segment_results[key] = is_true
