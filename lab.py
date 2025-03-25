@@ -255,7 +255,7 @@ def is_cough_in_top_10(scores):
 def one_frame_judgment_only_cough(scores, class_combinations_list,current=None):
     """ 기존 조합 기반 판단 + Cough(42) 포함 여부 추가 """
     temp1,score_frame = one_frame_judgment(scores, class_combinations_list)
-    print(f"기침에 대해서 temp1 : {temp1} ,score_frame:{score_frame}")
+    # print(f"기침에 대해서 temp1 : {temp1} ,score_frame:{score_frame}")
     # top_5_indices = np.argsort(scores)[::-1][:20]  # 확률값 기준 상위 5개 클래스 추출
     # get_class_name(class_id)
     # for i in top_5_indices:
@@ -263,22 +263,22 @@ def one_frame_judgment_only_cough(scores, class_combinations_list,current=None):
     # print("\n\n")
     # 기존 조합 검사
     if temp1:
-        print(f"기침에대해서 temp1이 True일떄 ,score_frame:{score_frame}")
+        # print(f"기침에대해서 temp1이 True일떄 ,score_frame:{score_frame}")
         return True,score_frame # 기존 조합이 충족되면 바로 True
 
     temp2 = is_cough_in_top_10(scores)  # Cough(42) 상위 5개 내 포함 여부 검사
     if temp2:
-        print(f"기침에대해서 temp2 True일떄 ,cough_score_dic:{cough_score_dic['only_cough']}")
+        # print(f"기침에대해서 temp2 True일떄 ,cough_score_dic:{cough_score_dic['only_cough']}")
         return True,cough_score_dic['only_cough']  # 기침이 상위 5개 안에 있으면 True
-    print(f"기침에대해서 temp2 False일떄")
+    # print(f"기침에대해서 temp2 False일떄")
     return False,0  # 둘 다 아니라면 False
 # 한 프레임에 대한 T/F 계산 함수 , scores는 yamnet의 한 프레임에 대한 확률벡터값(521,1)
 def one_frame_judgment(scores, class_combinations,current=None):
     for i,combination in enumerate(class_combinations):
         all_match = True  # 현재 combination이 완전히 만족하는지 확인하는 변수
         for class_id, score_range in combination.items():
-            if len(score_range) >=3:
-                print(score_range)
+            # if len(score_range) >=3:
+            #     print(score_range)
             min_score, max_score = score_range  # 범위로부터 최소값, 최대값 분리
             score = scores[class_id]
             # print(f"{get_class_name(class_id)}의 score값은 현재 : {score}이다")
