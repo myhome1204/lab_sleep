@@ -16,12 +16,23 @@ import scipy.signal
 
 model = hub.load('https://tfhub.dev/google/yamnet/1')
 audio_total_time = ""
-
+personal_output = {}
+total_output = {}
+bruxism = []
+cough = []
+speech = []
+snoring = []
+korean_to_english ={
+    "이갈이" : bruxism,
+    "기침" : cough,
+    "잠꼬대" : speech,
+    "코골이"  : snoring
+}
 numbering = {
     "이갈이" :0,
     "기침" :1,
-    "잠꼬대" :2,
-    "코골이" :3
+    "코골이" :2,
+    "잠꼬대" :3
 }
 
 #얘네가 초기화가아니라 마지막에 파일당 점수를 가지고 있는 dic를 초기화해야함함
@@ -43,6 +54,7 @@ bruxism_score_dic = {
 snoring_score_dic = {
     0 : 1.5,
     1:1.0,
+    2:1.2
 }
 cough_score_dic = {
     #기침와 이갈이는 그룹조합의 인덱스번호 말고도 조건이 하나 더있기떄문에 특별 점수가 하나더 존재해야한다.(only_cough에대한 score값 저장 )
@@ -231,18 +243,19 @@ required_true_count_list = [
     #잠꼬대 최종 판단 사이즈 입니다.
     2,
 ]
-def is_cough_in_top_5(scores):
+def is_cough_in_top_10(scores):
     """ 상위 5개 클래스 중 Cough(42)가 포함되어 있는지 확인 """
-    top_5_indices = np.argsort(scores)[::-1][:10]  # 확률값 기준 상위 5개 클래스 추출
+    top_10_indices = np.argsort(scores)[::-1][:10]  # 확률값 기준 상위 5개 클래스 추출
     # get_class_name(class_id)
     # for i in top_5_indices:
 
     #     print(f"기침 상위권 목록 {get_class_name(i)}")
-    return 42 in top_5_indices  # Cough(42)가 상위 5개 안에 있는지 확인
+    return 42 in top_10_indices  # Cough(42)가 상위 5개 안에 있는지 확인
 
-def one_frame_judgment_only_cough(scores, class_combinations_list):
+def one_frame_judgment_only_cough(scores, class_combinations_list,current=None):
     """ 기존 조합 기반 판단 + Cough(42) 포함 여부 추가 """
     temp1,score_frame = one_frame_judgment(scores, class_combinations_list)
+    print(f"기침에 대해서 temp1 : {temp1} ,score_frame:{score_frame}")
     # top_5_indices = np.argsort(scores)[::-1][:20]  # 확률값 기준 상위 5개 클래스 추출
     # get_class_name(class_id)
     # for i in top_5_indices:
@@ -250,12 +263,14 @@ def one_frame_judgment_only_cough(scores, class_combinations_list):
     # print("\n\n")
     # 기존 조합 검사
     if temp1:
+        print(f"기침에대해서 temp1이 True일떄 ,score_frame:{score_frame}")
         return True,score_frame # 기존 조합이 충족되면 바로 True
 
-    temp2 = is_cough_in_top_5(scores)  # Cough(42) 상위 5개 내 포함 여부 검사
+    temp2 = is_cough_in_top_10(scores)  # Cough(42) 상위 5개 내 포함 여부 검사
     if temp2:
+        print(f"기침에대해서 temp2 True일떄 ,cough_score_dic:{cough_score_dic['only_cough']}")
         return True,cough_score_dic['only_cough']  # 기침이 상위 5개 안에 있으면 True
-
+    print(f"기침에대해서 temp2 False일떄")
     return False,0  # 둘 다 아니라면 False
 # 한 프레임에 대한 T/F 계산 함수 , scores는 yamnet의 한 프레임에 대한 확률벡터값(521,1)
 def one_frame_judgment(scores, class_combinations,current=None):
@@ -271,6 +286,8 @@ def one_frame_judgment(scores, class_combinations,current=None):
                 all_match = False
                 break
         if all_match:  # 해당 combination이 완벽하게 만족하면 True 반환
+            if not current:
+                return True,0
             return True,score_dic_matching[current][i]
     return False,0  # 모든 조합이 실패하면 False 반환
 
@@ -361,22 +378,24 @@ def start(audio_path,scores, class_combinations_list, group_size_list, min_valid
                                       required_true_count=required_true_count_list[i],
                                       scores=scores,
                                       bruxism=True)
+            result_scores.append(score)
         
         elif category =="기침":
-          judge,result_count,score= final_logic(class_combinations=class_combinations_list[i],
+            judge,result_count,score= final_logic(class_combinations=class_combinations_list[i],
                                       group_size=group_size_list[i],
                                       min_valid_count=min_valid_count_list[i],
                                       required_true_count=required_true_count_list[i],
                                       scores=scores,
                                       cough =True)
-          result_scores.append(result_count)
+            result_scores.append(result_count)
         elif category =="코골이":
             judge,result_count,score= final_logic(class_combinations=class_combinations_list[i],
                                       group_size=group_size_list[i],
                                       min_valid_count=min_valid_count_list[i],
                                       required_true_count=required_true_count_list[i],
                                       scores=scores,
-                                      snroing =True)
+                                      snoring =True)
+            result_scores.append(score)
         elif category =="잠꼬대":
             judge,result_count,score= final_logic(class_combinations=class_combinations_list[i],
                                       group_size=group_size_list[i],
@@ -384,13 +403,15 @@ def start(audio_path,scores, class_combinations_list, group_size_list, min_valid
                                       required_true_count=required_true_count_list[i],
                                       scores=scores,
                                       speech =True)
+            result_scores.append(score)
         else:
-          judge,result_count,score= final_logic(class_combinations=class_combinations_list[i],
+            judge,result_count,score= final_logic(class_combinations=class_combinations_list[i],
                                       group_size=group_size_list[i],
                                       min_valid_count=min_valid_count_list[i],
                                       required_true_count=required_true_count_list[i],
                                       scores=scores)
-          result_scores.append(score)
+            result_scores.append(score)
+            
         # 결과를 딕셔너리에 저장
         result_dict[category] = judge
     result_list = [int(result_dict[key]) for key in result_dict]
@@ -474,11 +495,12 @@ def process_large_wav(input_wav, chunk_duration=20):
             if value:
                 # 미리 만들어뒀던 각 이벤트 리스트에 시간 및 점수 기록.
                 if key != "정상":
-                  koren_to_english[key].append([f"{start_h:02}:{start_m:02}:{start_s:02} 부터 {end_h:02}:{end_m:02}:{end_s:02}",result_scores[numbering[key]]])
+                  korean_to_english[key].append([f"{start_h:02}:{start_m:02}:{start_s:02} 부터 {end_h:02}:{end_m:02}:{end_s:02}",result_scores[numbering[key]]])
                 ### 임
                 event_output[key].append(f"{start_h:02}:{start_m:02}:{start_s:02} 부터 {end_h:02}:{end_m:02}:{end_s:02}")
         total_output[f"{start_h:02}:{start_m:02}:{start_s:02} 부터 {end_h:02}:{end_m:02}:{end_s:02}"] = result
     sort_dic()
+    
     return audio_data,sample_rate
 def extract_audio_segment(audio_data, sample_rate,start_value):
     """
@@ -521,35 +543,32 @@ def summary_result_show():
     print(f"{key}: {len(value)}회")
 
 def get_high_score_event(event_name,count):
-  if len(koren_to_english[event_name]) < count:
-    print(f"모델이 감지한 {event_name} 오디오 파일의 총 갯수가 {count}보다 작습니다. 오디오의 갯수보다 낮춰서 다시 실행해주세요.\n{event_name} 오디오 총 갯수 : {len(koren_to_english[event_name])}")
-    return
-  for i in range(count):
-    # {koren_to_english[event_name][i][1]}
-    print(f"{koren_to_english[event_name][i][0]}")
-    
-personal_output = {}
-total_output = {}
-bruxism = []
-cough = []
-speech = []
-snoring = []
-koren_to_english ={
+    global korean_to_english,bruxism,cough,speech,snoring,speech
+    korean_to_english ={
     "이갈이" : bruxism,
     "기침" : cough,
     "잠꼬대" : speech,
     "코골이"  : snoring
-}
+    }
+    if len(korean_to_english[event_name]) < count:
+        print(f"모델이 감지한 {event_name} 오디오 파일의 총 갯수가 {count}보다 작습니다. 오디오의 갯수보다 낮춰서 다시 실행해주세요.\n{event_name} 오디오 총 갯수 : {len(korean_to_english[event_name])}")
+        return
+    
+    for i in range(count):
+        # {koren_to_english[event_name][i][1]}
+        print(f"{korean_to_english[event_name][i][0]}")
+        
+
 event_output = {"이갈이": [], "기침": [], "코골이": [], "잠꼬대": [], "정상": []}
 def dic_reset():
-    global personal_output ,total_output,bruxism,cough,speech,snoring,koren_to_english,event_output
+    global personal_output ,total_output,bruxism,cough,speech,snoring,korean_to_english,event_output
     personal_output = {}
     total_output = {}
     bruxism = []
     cough = []
     speech = []
     snoring = []
-    koren_to_english ={
+    korean_to_english ={
         "이갈이" : bruxism,
         "기침" : cough,
         "잠꼬대" : speech,
