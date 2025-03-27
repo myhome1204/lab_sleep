@@ -542,7 +542,7 @@ def get_high_score_event(event_name,count):
     # print(koren_to_english[event_name])
     # {koren_to_english[event_name][i][1]}
     # print(f"event_name : {koren_to_english[event_name]}")
-    print(f"{koren_to_english[event_name][i][0]}")
+    print(f"{i+1}번째 : {koren_to_english[event_name][i][0]}, score :  {koren_to_english[event_name][i][1]}")
 
 
 def dic_reset():
