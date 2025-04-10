@@ -253,7 +253,7 @@ def one_frame_judgment(scores, class_combinations,current=None):
             # print(f"combination : {combination}")
             # print(f"i값 : {i}, 그당시에 score_dic_matching의 current : {score_dic_matching[current]}")
             # print(score_dic_matching[current][i])
-            return True,int(score_dic_matching[current][i])
+            return True,(score_dic_matching[current][i])
     return False,0  # 모든 조합이 실패하면 False 반환
 
 
